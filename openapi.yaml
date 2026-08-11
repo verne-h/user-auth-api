@@ -1,0 +1,262 @@
+openapi: 3.1.0
+info:
+  title: User Authentication API
+  version: 1.1.0
+  description: REST API for creating users, authenticating credentials, and issuing JWT access tokens.
+
+# Relative server URLs are resolved against the host serving the API definition.
+# This keeps the same specification usable for local, staging, and production.
+servers:
+  - url: /v1
+    description: Version 1 API on the current host
+
+paths:
+  /users:
+    post:
+      tags: [Users]
+      summary: Create a user login
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          description: Too many account creation attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate a user and issue a JWT access token
+      operationId: authenticateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful and access token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          description: Too many failed authentication attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get the currently authenticated user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived JWT access token returned by POST /auth/login.
+
+  schemas:
+    CreateUserRequest:
+      type: object
+      additionalProperties: false
+      required: [username, email, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._-]+$'
+          examples: [alice.smith]
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          examples: [alice@example.com]
+        password:
+          type: string
+          format: password
+          minLength: 15
+          maxLength: 128
+          description: A password or passphrase of at least 15 characters. Common passwords are rejected.
+          examples: ['Correct Horse Battery 9!']
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: '^[A-Za-z0-9._-]+$'
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 128
+
+    PublicUser:
+      type: object
+      additionalProperties: false
+      required: [username, email, is_active]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CreateUserResponse:
+      type: object
+      additionalProperties: false
+      required: [message, user]
+      properties:
+        message:
+          type: string
+          examples: [User created successfully.]
+        user:
+          allOf:
+            - $ref: '#/components/schemas/PublicUser'
+            - type: object
+              required: [created_at]
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [message, access_token, token_type, expires_in, user]
+      properties:
+        message:
+          type: string
+          examples: [Authentication successful.]
+        access_token:
+          type: string
+          description: Signed JWT access token. Treat this value as a credential.
+        token_type:
+          type: string
+          const: Bearer
+        expires_in:
+          type: integer
+          minimum: 60
+          description: Access token lifetime in seconds.
+          examples: [900]
+        user:
+          $ref: '#/components/schemas/PublicUser'
+
+    CurrentUserResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          allOf:
+            - $ref: '#/components/schemas/PublicUser'
+            - type: object
+              required: [created_at]
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details: {}
+        request_id:
+          type: string
+          description: Correlation identifier for troubleshooting.
+
+  responses:
+    BadRequest:
+      description: Invalid request JSON or input validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing, invalid, expired, or no-longer-valid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: Request Content-Type is not application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
