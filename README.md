@@ -242,3 +242,14 @@ servers:
 ```
 
 and defines resource paths such as `/users`, `/auth/login`, and `/users/me`. The resulting endpoints are `/v1/users`, `/v1/auth/login`, and `/v1/users/me`. This avoids repeating the version prefix on every path while keeping the server host dynamic.
+
+## Future Development
+
+The following endpoints/functionality should be added:
+-	Logout/invalidate token
+-	Refresh token
+-	Password reset request
+-	Password reset confirm
+-	Email verification
+-	User deletion
+
