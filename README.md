@@ -16,7 +16,9 @@ The OpenAPI document uses a relative server URL (`/v1`) rather than a hard-coded
 
 ## Configuration
 
-The API reads configuration from environment variables, and it also loads values from a local `.env` file when present. The repository includes an `.env.example` file with the supported keys.
+The application environment is defined in `src/config/index.ts`. That file validates and exports the supported environment variables and provides the default values used throughout the app.
+
+The API reads configuration from environment variables.  The repository includes an `.env.example` file with the supported keys. For production, the app should be refactored to load environment values from a deployment-managed `.env` or secret/config mechanism before the config schema is parsed.
 
 Supported variables include:
 
@@ -131,6 +133,8 @@ npm run dev
 
 The local base URL is `http://localhost:3000`.
 
+For local work, the canonical source of truth for the environment contract remains `src/config/index.ts`. A production refactor should explicitly load `.env` or the platform's secret/config injection before reading the validated config values.
+
 ### Optional local JWT configuration
 
 The built-in development secret is intentionally only for local use. To use your own local secret, either export it in your shell or place it in a local `.env` file:
@@ -220,12 +224,13 @@ npm start
 6. Set `NODE_ENV=production`. Production startup intentionally rejects a missing `JWT_SECRET`.
 7. Set `TRUST_PROXY=true` only when the API is actually behind a trusted reverse proxy that sets client IP headers. This is important for IP-based rate limiting.
 8. Use Redis persistence/replication/backups appropriate to your recovery requirements because Redis is the system of record in this exercise.
-9. Run multiple API instances behind a health-checking load balancer for availability. Redis-backed rate limiting is shared across instances.
-10. Collect stdout/stderr JSON logs in your observability platform and alert on elevated `401`, `429`, `5xx`, readiness failures, and Redis errors. Never log Authorization headers or JWT values.
-11. Restrict ingress, egress, and Redis access using security groups/firewall rules and least privilege.
-12. Add a managed breached-password service or maintained blocklist for a full identity product.
-13. For systems that require long-lived sessions, add refresh-token rotation and revocation rather than increasing the access-token lifetime significantly.
-14. If many independent services only need to verify tokens, consider asymmetric signing plus JWKS so verifiers do not need access to the signing secret.
+9. The environment contract for the app is defined in `src/config/index.ts`. Production should not rely on ad hoc shell exports alone; refactor the startup path to load the `.env` file or platform secret/config values before `config` is parsed.
+10. Run multiple API instances behind a health-checking load balancer for availability. Redis-backed rate limiting is shared across instances.
+11. Collect stdout/stderr JSON logs in your observability platform and alert on elevated `401`, `429`, `5xx`, readiness failures, and Redis errors. Never log Authorization headers or JWT values.
+12. Restrict ingress, egress, and Redis access using security groups/firewall rules and least privilege.
+13. Add a managed breached-password service or maintained blocklist for a full identity product.
+14. For systems that require long-lived sessions, add refresh-token rotation and revocation rather than increasing the access-token lifetime significantly.
+15. If many independent services only need to verify tokens, consider asymmetric signing plus JWKS so verifiers do not need access to the signing secret.
 
 ## OpenAPI versioning
 
