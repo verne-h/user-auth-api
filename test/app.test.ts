@@ -155,14 +155,37 @@ describe('user auth API', () => {
     expect(response.body.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
   });
 
-  it('returns 404 when the protected endpoint is missing', async () => {
+  it('returns 401 when the protected endpoint is called without a token', async () => {
     const app = createApp({ repository: new MemoryStore() });
     const response = await request(app).get('/v1/users/me');
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('NOT_FOUND');
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHORIZED');
   });
 
-  it('returns 404 for a tampered access token on a missing route', async () => {
+  it('returns the current user for a valid access token', async () => {
+    const app = createApp({ repository: new MemoryStore() });
+    await request(app).post('/v1/users').send(validUser);
+    const login = await request(app)
+      .post('/v1/auth/login')
+      .send({ username: validUser.username, password: validUser.password });
+
+    const response = await request(app)
+      .get('/v1/users/me')
+      .set('Authorization', `Bearer ${login.body.access_token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      message: 'Current user returned successfully.',
+      user: {
+        username: validUser.username,
+        email: validUser.email,
+        is_active: true,
+        created_at: expect.any(String),
+      },
+    });
+  });
+
+  it('returns 401 for a tampered access token', async () => {
     const app = createApp({ repository: new MemoryStore() });
     await request(app).post('/v1/users').send(validUser);
     const login = await request(app)
@@ -175,8 +198,8 @@ describe('user auth API', () => {
       .get('/v1/users/me')
       .set('Authorization', `Bearer ${tamperedToken}`);
 
-    expect(response.status).toBe(404);
-    expect(response.body.error.code).toBe('NOT_FOUND');
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('does not expose unversioned API routes', async () => {
